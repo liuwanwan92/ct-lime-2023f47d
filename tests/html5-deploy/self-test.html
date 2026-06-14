@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<title>Lime HTML5 Deployment Self-Test</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<style>
+		* { box-sizing: border-box; }
+		body { font-family: monospace; margin: 20px; background: #1a1a2e; color: #eee; }
+		h1 { color: #e94560; font-size: 1.4em; }
+		h2 { color: #0f3460; background: #e94560; padding: 4px 10px; display: inline-block; font-size: 1em; margin-top: 20px; }
+		.test { padding: 8px 12px; margin: 6px 0; border-left: 4px solid #555; background: #16213e; }
+		.test.pass { border-color: #4caf50; background: #1b3a1b; }
+		.test.fail { border-color: #f44336; background: #3a1b1b; }
+		.test.warn { border-color: #ff9800; background: #3a2e1b; }
+		.test.info { border-color: #2196f3; }
+		.label { font-weight: bold; }
+		.detail { color: #aaa; font-size: 0.85em; margin-top: 2px; }
+		button { background: #e94560; color: white; border: none; padding: 10px 20px; font-size: 1em; cursor: pointer; margin: 10px 0; font-family: monospace; }
+		button:hover { background: #c73e54; }
+		#summary { font-size: 1.2em; padding: 15px; margin: 15px 0; border: 2px solid; }
+		#summary.all-pass { border-color: #4caf50; color: #4caf50; }
+		#summary.has-fail { border-color: #f44336; color: #f44336; }
+		#summary.has-warn { border-color: #ff9800; color: #ff9800; }
+		a { color: #64b5f6; }
+	</style>
+</head>
+<body>
+
+<h1>Lime HTML5 Deployment Self-Test</h1>
+<p>Drop this file next to your build output (<code>bin/html5/bin/</code>) and open it via your web server.
+	See <a href="../../docs/web-deployment.md">docs/web-deployment.md</a> for the full deployment guide.</p>
+
+<div id="results"></div>
+
+<button id="audioTestBtn" style="display:none">Click to Test Audio Unlock</button>
+
+<div id="summary"></div>
+
+<script>
+(function() {
+	var results = [];
+	var container = document.getElementById('results');
+
+	function addResult(section, label, status, detail) {
+		results.push({ section: section, label: label, status: status, detail: detail || '' });
+	}
+
+	function render() {
+		container.innerHTML = '';
+		var sections = {};
+		results.forEach(function(r) {
+			if (!sections[r.section]) sections[r.section] = [];
+			sections[r.section].push(r);
+		});
+
+		for (var section in sections) {
+			var h2 = document.createElement('h2');
+			h2.textContent = section;
+			container.appendChild(h2);
+
+			sections[section].forEach(function(r) {
+				var div = document.createElement('div');
+				div.className = 'test ' + r.status;
+				div.innerHTML = '<div class="label">' +
+					(r.status === 'pass' ? '[PASS] ' : r.status === 'fail' ? '[FAIL] ' : r.status === 'warn' ? '[WARN] ' : '[INFO] ') +
+					r.label + '</div>';
+				if (r.detail) {
+					div.innerHTML += '<div class="detail">' + r.detail + '</div>';
+				}
+				container.appendChild(div);
+			});
+		}
+
+		// Summary
+		var fails = results.filter(function(r) { return r.status === 'fail'; }).length;
+		var warns = results.filter(function(r) { return r.status === 'warn'; }).length;
+		var summary = document.getElementById('summary');
+		if (fails > 0) {
+			summary.className = 'has-fail';
+			summary.textContent = fails + ' failure(s), ' + warns + ' warning(s). Fix the failures before deploying.';
+		} else if (warns > 0) {
+			summary.className = 'has-warn';
+			summary.textContent = 'All tests passed with ' + warns + ' warning(s). Review warnings for best results.';
+		} else {
+			summary.className = 'all-pass';
+			summary.textContent = 'All tests passed! Ready to deploy.';
+		}
+	}
+
+	// ========== Section 1: Protocol & Server ==========
+
+	function testProtocol() {
+		var protocol = window.location.protocol;
+		addResult('1. Server & Protocol', 'Current protocol',
+			protocol === 'file:' ? 'fail' : 'info',
+			protocol + '//' + window.location.host + window.location.pathname);
+
+		if (protocol === 'file:') {
+			addResult('1. Server & Protocol', 'Served over HTTP/HTTPS',
+				'fail',
+				'file:// protocol blocks XHR and Web Audio. Use an HTTP server. ' +
+				'See docs/web-deployment.md Section 4.');
+		} else {
+			addResult('1. Server & Protocol', 'Served over HTTP/HTTPS',
+				'pass',
+				'Server is using ' + protocol);
+		}
+
+		// Check if running on localhost
+		var host = window.location.hostname;
+		if (host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '') {
+			addResult('1. Server & Protocol', 'Local development server',
+				'info', 'Running on localhost — fine for development.');
+		} else {
+			addResult('1. Server & Protocol', 'Remote server',
+				'info', 'Running on ' + host + ' — check CORS if loading assets cross-origin.');
+		}
+	}
+
+	// ========== Section 2: XHR & Fetch ==========
+
+	function testXHR() {
+		// Test basic XHR
+		try {
+			var xhr = new XMLHttpRequest();
+			addResult('2. XHR & Asset Loading', 'XMLHttpRequest available',
+				'pass', 'XHR is available for asset loading.');
+		} catch (e) {
+			addResult('2. XHR & Asset Loading', 'XMLHttpRequest available',
+				'fail', 'XHR is not available: ' + e.message);
+		}
+
+		// Test fetch API
+		if (typeof fetch === 'function') {
+			addResult('2. XHR & Asset Loading', 'Fetch API available',
+				'pass', 'fetch() is available as a modern alternative.');
+		} else {
+			addResult('2. XHR & Asset Loading', 'Fetch API available',
+				'warn', 'fetch() not available — Lime uses XHR, so this is OK.');
+		}
+	}
+
+	function testManifestLoad() {
+		// Try to load the default manifest
+		var manifestPath = './manifest/default.json';
+		var xhr = new XMLHttpRequest();
+		xhr.open('GET', manifestPath, true);
+		xhr.onload = function() {
+			if (xhr.status === 200) {
+				try {
+					var data = JSON.parse(xhr.responseText);
+					var assetCount = data.assets ? (typeof data.assets === 'string' ? 'serialized' : data.assets.length) : 0;
+					addResult('2. XHR & Asset Loading', 'Manifest file loadable',
+						'pass',
+						manifestPath + ' loaded (' + xhr.responseText.length + ' bytes, ' + assetCount + ' assets)');
+
+					// Check MIME type from response header
+					var contentType = xhr.getResponseHeader('Content-Type');
+					if (contentType && contentType.indexOf('json') >= 0) {
+						addResult('2. XHR & Asset Loading', 'Manifest MIME type',
+							'pass', 'Content-Type: ' + contentType);
+					} else if (contentType) {
+						addResult('2. XHR & Asset Loading', 'Manifest MIME type',
+							'warn', 'Content-Type: ' + contentType + ' (expected application/json)');
+					} else {
+						addResult('2. XHR & Asset Loading', 'Manifest MIME type',
+							'info', 'Content-Type header not available.');
+					}
+
+					// Check rootPath
+					if (data.rootPath) {
+						addResult('2. XHR & Asset Loading', 'Manifest rootPath',
+							'info', 'rootPath: "' + data.rootPath + '"');
+					} else {
+						addResult('2. XHR & Asset Loading', 'Manifest rootPath',
+							'info', 'No rootPath set — assets will resolve relative to manifest URL.');
+					}
+				} catch (e) {
+					addResult('2. XHR & Asset Loading', 'Manifest file loadable',
+						'fail', 'JSON parse error: ' + e.message);
+				}
+			} else if (xhr.status === 404) {
+				addResult('2. XHR & Asset Loading', 'Manifest file loadable',
+					'warn', manifestPath + ' not found (404). This is expected if you haven\'t built yet, ' +
+					'or if your project embeds all assets.');
+			} else {
+				addResult('2. XHR & Asset Loading', 'Manifest file loadable',
+					'fail', manifestPath + ' returned HTTP ' + xhr.status);
+			}
+			testMainJS();
+		};
+		xhr.onerror = function() {
+			addResult('2. XHR & Asset Loading', 'Manifest file loadable',
+				'fail', 'XHR error loading ' + manifestPath + '. ' +
+				(window.location.protocol === 'file:' ? 'file:// protocol blocks XHR.' : 'Check server config and CORS.'));
+			testMainJS();
+		};
+		xhr.send();
+	}
+
+	function testMainJS() {
+		// Try to find the main JS file
+		var scripts = document.querySelectorAll('script[src]');
+		var limeJS = null;
+		for (var i = 0; i < scripts.length; i++) {
+			var src = scripts[i].getAttribute('src');
+			if (src && src.indexOf('.js') >= 0 && src.indexOf('self-test') < 0) {
+				limeJS = src;
+				break;
+			}
+		}
+
+		if (limeJS) {
+			addResult('2. XHR & Asset Loading', 'Main JS file reference',
+				'info', 'Found: ' + limeJS);
+		} else {
+			addResult('2. XHR & Asset Loading', 'Main JS file reference',
+				'info', 'No external JS files found on this test page (expected — this is the self-test page).');
+		}
+		render();
+	}
+
+	// ========== Section 3: Audio ==========
+
+	function testAudio() {
+		// Web Audio API
+		var AudioCtx = window.AudioContext || window.webkitAudioContext;
+		if (AudioCtx) {
+			addResult('3. Audio Capabilities', 'Web Audio API',
+				'pass', 'AudioContext is available.');
+
+			try {
+				var ctx = new AudioCtx();
+				addResult('3. Audio Capabilities', 'AudioContext state',
+					ctx.state === 'suspended' ? 'warn' : 'pass',
+					'State: ' + ctx.state + (ctx.state === 'suspended' ?
+						' — requires user gesture to resume. See docs/web-deployment.md Section 6.' : ''));
+				ctx.close();
+			} catch (e) {
+				addResult('3. Audio Capabilities', 'AudioContext creation',
+					'fail', 'Cannot create AudioContext: ' + e.message);
+			}
+		} else {
+			addResult('3. Audio Capabilities', 'Web Audio API',
+				'warn', 'Web Audio API not available. HTML5 Audio element will be used.');
+		}
+
+		// HowlerJS
+		if (typeof Howl !== 'undefined') {
+			addResult('3. Audio Capabilities', 'HowlerJS loaded',
+				'pass', 'Howl is available. Lime uses this for HTML5 audio.');
+		} else {
+			addResult('3. Audio Capabilities', 'HowlerJS loaded',
+				'info', 'HowlerJS not loaded on this test page. It will be available in your Lime build.');
+		}
+
+		// HTML5 Audio element
+		try {
+			var audio = document.createElement('audio');
+			var formats = [];
+			if (audio.canPlayType('audio/mpeg')) formats.push('mp3');
+			if (audio.canPlayType('audio/ogg')) formats.push('ogg');
+			if (audio.canPlayType('audio/wav')) formats.push('wav');
+			if (audio.canPlayType('audio/aac')) formats.push('aac');
+			if (audio.canPlayType('audio/mp4')) formats.push('m4a/aac');
+			addResult('3. Audio Capabilities', 'Audio format support',
+				'pass', 'Supported: ' + (formats.length ? formats.join(', ') : 'none detected'));
+		} catch (e) {
+			addResult('3. Audio Capabilities', 'Audio format support',
+				'warn', 'Could not detect: ' + e.message);
+		}
+
+		// Autoplay policy
+		if (typeof navigator.autoplay !== 'undefined') {
+			addResult('3. Audio Capabilities', 'Autoplay policy API',
+				'info', 'navigator.autoplay is available.');
+		}
+		addResult('3. Audio Capabilities', 'Mobile autoplay restriction',
+			'info',
+			'Most mobile browsers require a user gesture (tap/click) before audio can play. ' +
+			'Implement a "Tap to Start" screen. See docs/web-deployment.md Section 6.');
+
+		// Show audio unlock test button
+		var btn = document.getElementById('audioTestBtn');
+		btn.style.display = 'inline-block';
+		btn.addEventListener('click', function() {
+			var AudioCtx2 = window.AudioContext || window.webkitAudioContext;
+			if (AudioCtx2) {
+				var ctx2 = new AudioCtx2();
+				if (ctx2.state === 'suspended') {
+					ctx2.resume().then(function() {
+						addResult('3. Audio Capabilities', 'Audio unlock (user gesture)',
+							'pass', 'AudioContext resumed to "' + ctx2.state + '" after click. Audio should now work.');
+						render();
+						ctx2.close();
+					});
+				} else {
+					addResult('3. Audio Capabilities', 'Audio unlock (user gesture)',
+						'pass', 'AudioContext already in "' + ctx2.state + '" state.');
+					render();
+					ctx2.close();
+				}
+			}
+			btn.style.display = 'none';
+		});
+	}
+
+	// ========== Section 4: Cache Busting ==========
+
+	function testCacheBusting() {
+		// Check if cache-busting params are present in asset URLs
+		addResult('4. Cache Busting', 'Lime cache.version mechanism',
+			'info',
+			'Lime appends ?version to asset URLs at runtime (compile-time random integer). ' +
+			'Check your built app\'s Network tab to verify ?NNN suffixes on asset requests. ' +
+			'See docs/web-deployment.md Section 7.');
+
+		// Check cache headers of this page
+		if (window.location.protocol !== 'file:') {
+			var xhr = new XMLHttpRequest();
+			xhr.open('HEAD', window.location.href, true);
+			xhr.onload = function() {
+				var cacheControl = xhr.getResponseHeader('Cache-Control');
+				var etag = xhr.getResponseHeader('ETag');
+
+				if (cacheControl) {
+					var isNoCache = cacheControl.indexOf('no-cache') >= 0 || cacheControl.indexOf('no-store') >= 0;
+					addResult('4. Cache Busting', 'Cache-Control header',
+						isNoCache ? 'pass' : 'info',
+						'Cache-Control: ' + cacheControl +
+						(isNoCache ? ' — good for HTML/JS during development' : ' — consider no-cache for .js/.json in production'));
+				} else {
+					addResult('4. Cache Busting', 'Cache-Control header',
+						'warn', 'No Cache-Control header. Configure short/no-cache for .js/.json files.');
+				}
+
+				if (etag) {
+					addResult('4. Cache Busting', 'ETag header',
+						'pass', 'ETag: ' + etag);
+				}
+
+				render();
+			};
+			xhr.onerror = function() {
+				addResult('4. Cache Busting', 'Cache-Control header',
+					'info', 'Could not check cache headers (XHR error).');
+				render();
+			};
+			xhr.send();
+		} else {
+			addResult('4. Cache Busting', 'Cache-Control header',
+				'info', 'Cannot check on file:// protocol.');
+			render();
+		}
+	}
+
+	// ========== Section 5: Viewport & Mobile ==========
+
+	function testViewport() {
+		var viewport = document.querySelector('meta[name="viewport"]');
+		if (viewport) {
+			addResult('5. Mobile Readiness', 'Viewport meta tag',
+				'pass', 'Content: ' + viewport.getAttribute('content'));
+		} else {
+			addResult('5. Mobile Readiness', 'Viewport meta tag',
+				'warn', 'No viewport meta tag. Lime templates include this by default.');
+		}
+
+		addResult('5. Mobile Readiness', 'Device pixel ratio',
+			'info', 'window.devicePixelRatio = ' + (window.devicePixelRatio || 'undefined'));
+
+		addResult('5. Mobile Readiness', 'Touch support',
+			'info', ('ontouchstart' in window) ? 'Touch events available.' : 'No touch events detected (desktop?).');
+
+		addResult('5. Mobile Readiness', 'Screen size',
+			'info', window.screen.width + 'x' + window.screen.height +
+			' (viewport: ' + window.innerWidth + 'x' + window.innerHeight + ')');
+	}
+
+	// ========== Section 6: Directory Structure ==========
+
+	function testDirectoryStructure() {
+		if (window.location.protocol === 'file:') {
+			addResult('6. Build Output', 'Directory structure check',
+				'info', 'Cannot verify on file:// protocol. Serve via HTTP and re-run.');
+			return;
+		}
+
+		// Check for expected directories/files
+		var checks = [
+			{ path: './manifest/default.json', desc: 'manifest/default.json', type: 'json' },
+			{ path: './lib/howler.min.js', desc: 'lib/howler.min.js (audio)', type: 'js' },
+			{ path: './lib/pako.min.js', desc: 'lib/pako.min.js (compression)', type: 'js' },
+			{ path: './favicon.png', desc: 'favicon.png', type: 'image' }
+		];
+
+		var pending = checks.length;
+		checks.forEach(function(check) {
+			var xhr = new XMLHttpRequest();
+			xhr.open('HEAD', check.path, true);
+			xhr.onload = function() {
+				if (xhr.status === 200) {
+					addResult('6. Build Output', check.desc,
+						'pass', 'Found (HTTP ' + xhr.status + ')');
+				} else if (xhr.status === 404) {
+					var severity = check.path.indexOf('manifest') >= 0 ? 'warn' : 'info';
+					addResult('6. Build Output', check.desc,
+						severity, 'Not found (404)' + (severity === 'warn' ? ' — assets may not load' : ' — optional'));
+				} else {
+					addResult('6. Build Output', check.desc,
+						'warn', 'HTTP ' + xhr.status);
+				}
+				pending--;
+				if (pending === 0) render();
+			};
+			xhr.onerror = function() {
+				addResult('6. Build Output', check.desc,
+					'warn', 'Request failed');
+				pending--;
+				if (pending === 0) render();
+			};
+			xhr.send();
+		});
+	}
+
+	// ========== Run all tests ==========
+
+	testProtocol();
+	testXHR();
+	testManifestLoad(); // calls render() after async
+	testAudio();
+	testCacheBusting(); // calls render() after async
+	testViewport();
+	testDirectoryStructure(); // calls render() after async
+
+	// Initial render (sync tests)
+	render();
+})();
+</script>
+
+</body>
+</html>

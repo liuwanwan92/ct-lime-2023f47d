@@ -114,6 +114,36 @@ Lime currently supports the following targets:
 Desktop builds are currently designed to be built on the same host OS
 
 
+HTML5 Deployment
+================
+
+Lime HTML5 builds produce a static site (HTML + JS + assets) ready for any
+web server.  Two build paths are available:
+
+ * **Direct template** (`lime build html5`): produces `bin/html5/bin/` with
+   a self-contained `index.html`, compiled JS, and asset directories.
+ * **NPM / Webpack** (`lime build html5 -npm`): produces a webpack bundle
+   in `bin/html5/bin/dist/` with HMR dev server support.
+
+Key points when deploying:
+
+ * **Always serve over HTTP** — `file://` protocol blocks XHR asset loading
+   and Web Audio on modern browsers.  Use `lime test html5` for local
+   development (launches a bundled dev server).
+ * **Mobile audio** requires a user gesture (tap/click) before playback
+   can begin — plan a "Tap to Start" screen.
+ * **Cache busting** is automatic for assets via a compile-time version
+   number; configure server headers for the main JS file.
+
+For the full walkthrough — local launch, subdirectory/CDN paths, audio
+unlock, cache strategy, common errors, and a deployment checklist — see
+[docs/web-deployment.md](docs/web-deployment.md).
+
+A self-test page is also available at
+[tests/html5-deploy/self-test.html](tests/html5-deploy/self-test.html) to
+validate your build output before going live.
+
+
 Join the Community
 ==================
 

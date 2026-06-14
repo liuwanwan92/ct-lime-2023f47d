@@ -1,3 +1,21 @@
+<!--
+  Lime HTML5 Deployment Template
+  ================================
+  This file is processed by Lime's template engine at build time.
+  Macros like ::APP_FILE:: are replaced with values from project.xml.
+
+  DEPLOYMENT NOTES (see docs/web-deployment.md for full guide):
+  - This page MUST be served over HTTP/HTTPS. Opening via file:// will fail
+    because XHR and Web Audio are blocked on the file protocol.
+  - All resource paths are RELATIVE. Preserve the directory structure when
+    deploying to a subdirectory or CDN.
+  - Audio requires a user gesture (tap/click) before it can play on mobile.
+  - The main JS file uses a relative path (./::APP_FILE::.js). If you rename
+    or relocate it, update the script tag below.
+  - To bust browser caches after updates, Lime appends ?version to asset URLs
+    automatically. For the JS file, configure server cache headers or add a
+    version query string manually.
+-->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,12 +24,17 @@
 
 	<title>::APP_TITLE::</title>
 
+	<!-- Viewport: prevents pinch-zoom on mobile. Auto-adjusted below for high-DPI screens. -->
 	<meta id="viewport" name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 	<meta name="mobile-web-app-capable" content="yes">
 
 	::if favicons::::foreach (favicons)::
 	<link rel="::__current__.rel::" type="::__current__.type::" href="::__current__.href::">::end::::end::
 
+	<!-- Linked JS dependencies (HowlerJS, pako, etc.)
+	     These are copied to the dependency-path (default: "lib/") at build time.
+	     Configure via <config:html5 dependency-path="vendor" /> in project.xml.
+	     Dependencies with embed="true" are inlined into the main JS instead. -->
 	::if linkedLibraries::::foreach (linkedLibraries)::
 	<script type="text/javascript" src="::__current__::"></script>::end::::end::
 	<script type="text/javascript" src="./::APP_FILE::.js"></script>
@@ -38,6 +61,10 @@
 	<div id="content"></div>
 
 	<script type="text/javascript">
+		// lime.embed(projectName, containerId, width, height)
+		// - projectName: must match <app file="..." /> in project.xml
+		// - containerId: the DOM element ID to mount the application into
+		// - width/height: 0 means "fill the container" (resizable mode)
 		lime.embed ("::APP_FILE::", "content", ::WIN_WIDTH::, ::WIN_HEIGHT::);
 	</script>
 
