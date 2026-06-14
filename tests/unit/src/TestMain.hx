@@ -9,6 +9,7 @@ class TestMain extends Application {
 		var runner = new Runner();
 		runner.addCase(new app.EventTest());
 		runner.addCase(new utils.ArrayBufferTest());
+		runner.addCase(new utils.AssetManifestTest());
 		runner.addCase(new utils.UInt8ArrayTest());
 		runner.addCase(new utils.UInt16ArrayTest());
 		runner.addCase(new utils.UInt32ArrayTest());

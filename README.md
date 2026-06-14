@@ -114,6 +114,14 @@ Lime currently supports the following targets:
 Desktop builds are currently designed to be built on the same host OS
 
 
+Deploying to the web (HTML5)
+============================
+
+For a hands-on guide to publishing the HTML5 target — local testing, asset paths
+for subdirectory/CDN hosting, audio autoplay on mobile, and cache busting — see
+[docs/HTML5.md](docs/HTML5.md) (written in Chinese).
+
+
 Join the Community
 ==================
 
